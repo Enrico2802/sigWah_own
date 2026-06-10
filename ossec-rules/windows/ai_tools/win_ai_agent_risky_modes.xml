@@ -1,0 +1,74 @@
+<group name="ai_tools,agent_permissions,risky_modes,windows,">
+	<rule id="310100" level="12">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)\bcodex(\.cmd|\.exe)?\b</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(--sandbox\s+danger-full-access|--dangerously-bypass-approvals-and-sandbox|--yolo|--ask-for-approval\s+never)</field>
+		<description>Codex started with full-access or no-approval mode</description>
+		<info type="text">Detects Codex CLI execution with flags that remove sandbox boundaries or approval prompts.</info>
+		<info type="text">Falsepositives: Intentional use by approved admins or isolated lab systems.</info>
+		<group>ai_tools,codex,full_access,process_creation,</group>
+	</rule>
+
+	<rule id="310101" level="12">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)\bcodex(\.cmd|\.exe)?\b</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(sandbox_mode\s*=\s*['"]?danger-full-access|approval_policy\s*=\s*['"]?never|default_permissions\s*=\s*['"]?:danger-full-access|allowed_permission_profiles\.[^=]*:danger-full-access)</field>
+		<description>Codex started with risky permission configuration override</description>
+		<info type="text">Detects Codex CLI -c overrides that enable full access, disable approvals, or allow the danger-full-access permission profile.</info>
+		<info type="text">Falsepositives: Intentional administrative testing in controlled environments.</info>
+		<group>ai_tools,codex,full_access,process_creation,</group>
+	</rule>
+
+	<rule id="310110" level="12">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)\bclaude(\.cmd|\.exe)?\b</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(--dangerously-skip-permissions|--permission-mode\s+bypassPermissions|--allow-dangerously-skip-permissions)</field>
+		<description>Claude Code started with permission bypass mode</description>
+		<info type="text">Detects Claude Code execution with flags that bypass normal permission prompts.</info>
+		<info type="text">Falsepositives: Intentional use by approved admins or isolated lab systems.</info>
+		<group>ai_tools,claude_code,permission_bypass,process_creation,</group>
+	</rule>
+
+	<rule id="310120" level="8">
+		<if_sid>550,554</if_sid>
+		<field name="file" type="pcre2">(?i)\\\.codex\\(config\.toml|.*\.config\.toml|requirements\.toml)$</field>
+		<description>Codex configuration file changed: $(file)</description>
+		<info type="text">Detects creation or modification of Codex configuration files. Enable FIM report_changes to let child rules inspect risky settings.</info>
+		<group>ai_tools,codex,configuration,syscheck,</group>
+	</rule>
+
+	<rule id="310121" level="13">
+		<if_sid>310120</if_sid>
+		<field name="changed_content" type="pcre2">(?i)(sandbox_mode\s*=\s*["']danger-full-access["']|approval_policy\s*=\s*["']never["']|default_permissions\s*=\s*["']:danger-full-access["']|:danger-full-access["']?\s*=\s*true|allowed_sandbox_modes\s*=\s*\[[^\]]*danger-full-access)</field>
+		<description>Codex full-access or no-approval setting added or changed: $(file)</description>
+		<info type="text">Detects Codex config changes that enable danger-full-access, disable approvals, or allow the danger-full-access permission profile.</info>
+		<info type="text">Requires FIM report_changes=yes on the monitored Codex configuration path.</info>
+		<group>ai_tools,codex,full_access,configuration,syscheck,</group>
+	</rule>
+
+	<rule id="310130" level="8">
+		<if_sid>550,554</if_sid>
+		<field name="file" type="pcre2">(?i)(\\\.claude\\settings(\.local)?\.json|\\\.claude\.json|\\\.mcp\.json)$</field>
+		<description>Claude Code configuration file changed: $(file)</description>
+		<info type="text">Detects creation or modification of Claude Code settings and MCP configuration files. Enable FIM report_changes to let child rules inspect risky settings.</info>
+		<group>ai_tools,claude_code,configuration,syscheck,</group>
+	</rule>
+
+	<rule id="310131" level="13">
+		<if_sid>310130</if_sid>
+		<field name="changed_content" type="pcre2">(?i)(dangerously-skip-permissions|bypassPermissions|skipDangerousModePermissionPrompt\s*["']?\s*:\s*true|allowedTools\s*["']?\s*:\s*\[[^\]]*(Bash\(\*\)|Bash|Write|Edit|MultiEdit))</field>
+		<description>Claude Code permission bypass or broad tool allowlist changed: $(file)</description>
+		<info type="text">Detects Claude Code settings that bypass permission prompts or broadly allow shell/file-editing tools.</info>
+		<info type="text">Requires FIM report_changes=yes on the monitored Claude Code configuration path.</info>
+		<group>ai_tools,claude_code,permission_bypass,configuration,syscheck,</group>
+	</rule>
+
+	<rule id="310140" level="10">
+		<if_sid>550,554</if_sid>
+		<field name="file" type="pcre2">(?i)(\\\.codex\\config\.toml|\\\.claude\.json|\\\.mcp\.json|\\\.claude\\settings(\.local)?\.json)$</field>
+		<field name="changed_content" type="pcre2">(?i)(mcp_servers|mcpServers|command\s*=|args\s*=)</field>
+		<description>AI agent MCP/tool integration configuration changed: $(file)</description>
+		<info type="text">Detects changes that add or modify MCP/tool integrations for local AI coding agents. Review the configured command, arguments, and target service.</info>
+		<group>ai_tools,mcp,tool_integration,configuration,syscheck,</group>
+	</rule>
+</group>

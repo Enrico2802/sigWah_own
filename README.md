@@ -77,7 +77,7 @@ Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manue
 | `ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
 | `ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
 | `ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
-| `ossec-rules/windows/ai_tools/` | 6 | `310000-310021` | Wazuh Syscollector Software Inventory | Optionales Zusatz-Regelset, um installierte KI-Tools wie ChatGPT, Claude, Cursor, Windsurf, Ollama, LM Studio, GPT4All, Stable Diffusion und aehnliche Tools auf Clients zu erkennen. |
+| `ossec-rules/windows/ai_tools/` | 14 | `310000-310140` | Wazuh Syscollector, Sysmon und FIM | Optionale Zusatz-Regelsets, um installierte KI-Tools sowie riskante Agent-Modi wie Full Access, Permission Bypass und MCP-/Tool-Konfigurationsaenderungen auf Clients zu erkennen. |
 
 ### Empfehlung nach Einsatzszenario
 
@@ -211,6 +211,61 @@ GET /syscollector/<AGENT_ID>/packages?pretty=true&name=Cursor
 ```
 
 Im Wazuh Dashboard kannst du die Alerts mit `rule.groups:ai_tools` filtern. Fuer eine reine Inventar-Suche nutze die Software-Inventory-Ansicht oder filtere die Inventory-Indizes nach `data.program.name`.
+
+### Riskante KI-Agent-Modi erkennen
+
+Das zweite optionale Regelset `ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml` ist fuer die Frage gedacht: "Laesst ein Nutzer einen KI-Agenten mit zu vielen Rechten laufen?"
+
+Es erkennt:
+
+| Regelbereich | Rule-IDs | Datenquelle | Erkennt |
+| --- | --- | --- | --- |
+| Codex CLI Full Access | `310100-310101` | Sysmon Event ID 1 | `codex` Starts mit `--sandbox danger-full-access`, `--dangerously-bypass-approvals-and-sandbox`, `--yolo`, `--ask-for-approval never` oder riskanten `-c` Overrides. |
+| Claude Code Permission Bypass | `310110` | Sysmon Event ID 1 | `claude` Starts mit `--dangerously-skip-permissions`, `--permission-mode bypassPermissions` oder `--allow-dangerously-skip-permissions`. |
+| Codex-Konfiguration | `310120-310121` | Wazuh FIM | Aenderungen an `.codex/config.toml`, Profil-Konfigurationen und `requirements.toml`, besonders `sandbox_mode = "danger-full-access"` oder `approval_policy = "never"`. |
+| Claude-Code-Konfiguration | `310130-310131` | Wazuh FIM | Aenderungen an Claude-Code-Konfigurationsdateien, die Permission Bypass oder breite Tool-Allowlists aktivieren. |
+| MCP-/Tool-Integrationen | `310140` | Wazuh FIM | Neue oder geaenderte MCP-/Tool-Konfigurationen, weil solche Integrationen Agenten Zugriff auf lokale oder externe Systeme geben koennen. |
+
+Installation auf dem Wazuh Manager:
+
+```bash
+sudo cp ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml /var/ossec/etc/rules/
+sudo chown root:wazuh /var/ossec/etc/rules/win_ai_agent_risky_modes.xml
+sudo chmod 640 /var/ossec/etc/rules/win_ai_agent_risky_modes.xml
+sudo /var/ossec/bin/wazuh-logtest
+sudo systemctl restart wazuh-manager
+```
+
+Die Prozessregeln brauchen Sysmon Process Creation Events. Die FIM-Regeln brauchen zusaetzlich Monitoring fuer die Konfigurationsdateien. Beispiel fuer Windows-Agenten oder eine zentrale `agent.conf`:
+
+```xml
+<syscheck>
+  <directories realtime="yes" whodata="yes" report_changes="yes" restrict="^config\.toml$|^.*\.config\.toml$|^requirements\.toml$">C:\Users\*\.codex</directories>
+  <directories realtime="yes" whodata="yes" report_changes="yes" restrict="^settings\.json$|^settings\.local\.json$">C:\Users\*\.claude</directories>
+</syscheck>
+```
+
+Wenn Entwickler-Repositories an festen Orten liegen, zum Beispiel `C:\Users\*\source` oder `C:\Users\*\Documents\GitHub`, solltest du dort zusaetzlich Projekt-Konfigurationen ueberwachen:
+
+```xml
+<syscheck>
+  <directories realtime="yes" whodata="yes" report_changes="yes" restrict="^config\.toml$|^settings\.json$|^settings\.local\.json$|^\.mcp\.json$">C:\Users\*\source</directories>
+  <directories realtime="yes" whodata="yes" report_changes="yes" restrict="^config\.toml$|^settings\.json$|^settings\.local\.json$|^\.mcp\.json$">C:\Users\*\Documents\GitHub</directories>
+</syscheck>
+```
+
+Hinweis: `report_changes="yes"` kann Inhalte aus Textdateien in Alerts aufnehmen. Fuer Secrets oder Token-Dateien solltest du `nodiff`-Ausnahmen setzen und nur die Datei-Aenderung, nicht den Inhalt, melden.
+
+Weitere sinnvolle Regelsets fuer KI-Tool-Governance:
+
+| Idee | Nutzen |
+| --- | --- |
+| API-Key-/Token-Datei-Monitoring | Erkennt neue oder geaenderte `.env`, `auth.json`, `credentials.json`, `.npmrc`, `pip.conf` oder Cloud-Credential-Dateien in Entwicklerverzeichnissen. |
+| KI-Tool-Netzwerkziele | Erkennt Verbindungen von Coding-Agents zu nicht freigegebenen AI-APIs oder privaten MCP-/Proxy-Endpunkten. |
+| Sensitive File Access durch KI-Prozesse | Erkennt, wenn `codex`, `claude`, `cursor`, `windsurf`, `ollama` oder aehnliche Prozesse Dateien wie SSH-Keys, Browser-Cookies, Cloud-Credentials oder Passwortspeicher lesen. |
+| MCP-Server-Start per Prozessregel | Erkennt lokale MCP-Server wie Filesystem-, GitHub-, Slack-, Browser- oder Datenbank-Connectoren, die einem Agenten mehr Aktionsflaeche geben. |
+| Portable/Source-basierte KI-Tools | Erkennt Tools, die nicht installiert sind, sondern aus `Downloads`, `AppData`, `Temp`, `source` oder Python/Node-Umgebungen gestartet werden. |
+| Model- und Datenexfiltration | Erkennt grosse Uploads oder auffaellige Verbindungen aus AI-Tool-Prozessen, besonders aus Repositories mit sensiblen Daten. |
 
 ## Wazuh improvement
 sigWah is created to improve the detection capabilities of Wazuh. It was part of a research project carried out during an internship. The aim of the research
