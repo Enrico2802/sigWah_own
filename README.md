@@ -309,6 +309,121 @@ Weitere sinnvolle Regelsets fuer KI-Tool-Governance:
 | Sensitive File Access durch KI-Prozesse | Erkennt, wenn `codex`, `claude`, `cursor`, `windsurf`, `ollama` oder aehnliche Prozesse Dateien wie SSH-Keys, Browser-Cookies, Cloud-Credentials oder Passwortspeicher lesen. |
 | Model- und Datenexfiltration | Erkennt grosse Uploads oder auffaellige Verbindungen aus AI-Tool-Prozessen, besonders aus Repositories mit sensiblen Daten. |
 
+## ISO 27001 Compliance Baseline mit Wazuh SCA
+
+Das Verzeichnis `sca-policies/` enthaelt optionale Wazuh-SCA-Policies fuer einen ersten ISO/IEC-27001:2022-orientierten Compliance-Check:
+
+| Datei | Plattform | Checks | SCA-Check-IDs | Zweck |
+| --- | --- | ---: | --- | --- |
+| `sca-policies/windows/iso27001_windows_client.yml` | Windows Clients | 10 | `320000-320009` | Client-Hardening, offensichtliche Passwortdateien, AI-Agent-Full-Access-Konfigurationen, Defender, Firewall, RDP und Wazuh-Agent-Health. |
+| `sca-policies/linux/iso27001_linux_server.yml` | Linux Server | 10 | `321000-321009` | SSH-Hardening, UID-0-Konten, offensichtliche Passwortdateien, auditd, Firewall, `/etc/shadow`, Passwortalter und Wazuh-Agent-Health. |
+
+Wazuh SCA bewertet Checks als `Passed`, `Failed` oder `Not applicable`. Der praktische Score ist damit einfach lesbar: Wenn 10 von 10 anwendbaren Checks erfolgreich sind, liegt der Score bei 100 Prozent; wenn 8 von 10 erfolgreich sind, bei 80 Prozent. Jeder Check enthaelt eine `rationale` fuer den Risikoausblick und eine `remediation` mit dem naechsten sinnvollen Fix.
+
+Wichtig: Diese Policies sind eine technische Baseline fuer Governance und Awareness. Sie ersetzen kein vollstaendiges ISO-27001-Audit, keine Risikoanalyse und keine Statement-of-Applicability-Pflege.
+
+### Enthaltene Beispiel-Findings
+
+| Finding | Warum es relevant ist |
+| --- | --- |
+| `password.txt`, `passwort.txt`, `credentials.txt` oder `secrets.txt` auf dem Desktop oder in Home-Verzeichnissen | Sehr hohes Risiko, weil lokale Nutzer, Malware, Backup-Jobs und AI-Agenten solche Dateien leicht lesen koennen. |
+| Codex-/Claude-Konfiguration mit `danger-full-access`, `approval_policy = "never"` oder Permission Bypass | Zeigt, dass ein AI-Agent moeglicherweise ohne ausreichende Freigaben Dateien lesen, Code aendern oder Tools starten kann. |
+| RDP auf normalen Windows-Clients aktiviert | Vergroessert die Angriffsoberflaeche und ist fuer Lateral Movement attraktiv. |
+| SSH `PermitRootLogin yes` oder `PasswordAuthentication yes` | Erhoeht das Risiko fuer Brute Force, Credential Reuse und fehlende individuelle Nachvollziehbarkeit. |
+| `auditd`, Firewall oder Wazuh-Agent nicht aktiv | Reduziert zentrale Sichtbarkeit, Nachvollziehbarkeit und technische Kontrollwirkung. |
+
+### Windows-Client-Policy installieren
+
+Auf dem Windows-Agent einen lokalen Ordner fuer eigene SCA-Policies anlegen und die Datei aus diesem Repository hineinkopieren:
+
+```powershell
+New-Item -ItemType Directory -Force "C:\Program Files (x86)\ossec-agent\custom-sca-files"
+Copy-Item .\sca-policies\windows\iso27001_windows_client.yml "C:\Program Files (x86)\ossec-agent\custom-sca-files\"
+```
+
+Danach in `C:\Program Files (x86)\ossec-agent\ossec.conf` die Policy aktivieren:
+
+```xml
+<sca>
+  <enabled>yes</enabled>
+  <scan_on_start>yes</scan_on_start>
+  <interval>12h</interval>
+  <policies>
+    <policy enabled="yes">C:\Program Files (x86)\ossec-agent\custom-sca-files\iso27001_windows_client.yml</policy>
+  </policies>
+</sca>
+```
+
+Agent neu starten:
+
+```powershell
+Restart-Service -Name wazuh
+```
+
+### Linux-Server-Policy installieren
+
+Auf dem Linux-Agent:
+
+```bash
+sudo mkdir -p /var/ossec/etc/custom-sca-files
+sudo cp sca-policies/linux/iso27001_linux_server.yml /var/ossec/etc/custom-sca-files/
+sudo chown root:wazuh /var/ossec/etc/custom-sca-files/iso27001_linux_server.yml
+sudo chmod 640 /var/ossec/etc/custom-sca-files/iso27001_linux_server.yml
+```
+
+In `/var/ossec/etc/ossec.conf` aktivieren:
+
+```xml
+<sca>
+  <enabled>yes</enabled>
+  <scan_on_start>yes</scan_on_start>
+  <interval>12h</interval>
+  <policies>
+    <policy enabled="yes">/var/ossec/etc/custom-sca-files/iso27001_linux_server.yml</policy>
+  </policies>
+</sca>
+```
+
+Agent neu starten:
+
+```bash
+sudo systemctl restart wazuh-agent
+```
+
+### Zentral ueber den Wazuh Manager ausrollen
+
+Du kannst die Dateien auch zentral ueber Agent-Gruppen verteilen, zum Beispiel nach `/var/ossec/etc/shared/default/`. Dann verweist die Agent-Konfiguration relativ auf die Policy:
+
+```xml
+<sca>
+  <enabled>yes</enabled>
+  <scan_on_start>yes</scan_on_start>
+  <interval>12h</interval>
+  <policies>
+    <policy enabled="yes">etc/shared/iso27001_windows_client.yml</policy>
+  </policies>
+</sca>
+```
+
+Da beide Policies `c:`-Command-Checks enthalten, muss bei zentral gepushten SCA-Policies auf dem Agent `sca.remote_commands=1` in `local_internal_options.conf` gesetzt sein. Das ist bewusst eine Sicherheitsentscheidung: Remote Commands sind standardmaessig deaktiviert, weil ein kompromittierter Manager sonst Befehle auf Endpoints ausfuehren koennte. Wenn du die Policy-Dateien lokal auf jedem Agent ablegst, ist diese zentrale Remote-Command-Freigabe nicht noetig.
+
+Ab Wazuh 4.13 muessen SCA-Policy-Dateien auf einem lokalen Dateisystem liegen; UNC-Pfade oder gemappte Netzlaufwerke sind fuer SCA-Policies nicht unterstuetzt.
+
+### Score, Dashboard und PDF
+
+Im Wazuh Dashboard findest du die Ergebnisse unter `Security configuration assessment` bzw. `Configuration Assessment` beim jeweiligen Agent. Dort kannst du:
+
+```text
+data.sca.policy_id:iso27001_windows_client_baseline
+data.sca.policy_id:iso27001_linux_server_baseline
+data.sca.check.result:failed
+data.sca.check.compliance.iso_27001_2022:*
+```
+
+als Filter nutzen, um nur ISO-27001-Baseline-Findings oder nur fehlgeschlagene Checks zu sehen. Fuer einen Management-Report nimm die Dashboard-/Reporting-Funktion deiner Wazuh-Installation und exportiere die gefilterte Ansicht als PDF. Falls dein Dashboard keine direkte PDF-Exportfunktion bereitstellt, ist der naechste stabile Weg ein eigenes Dashboard mit diesen Filtern und ein Screenshot-/Browser-PDF-Export.
+
+Offizielle Grundlage fuer diese Policy-Struktur ist die Wazuh-Dokumentation zu [Custom SCA policies](https://documentation.wazuh.com/current/user-manual/capabilities/sec-config-assessment/creating-custom-policies.html), [SCA-Konfiguration](https://documentation.wazuh.com/current/user-manual/capabilities/sec-config-assessment/how-to-configure.html) und [SCA Use Cases](https://documentation.wazuh.com/current/user-manual/capabilities/sec-config-assessment/use-cases.html).
+
 ## Wazuh improvement
 sigWah is created to improve the detection capabilities of Wazuh. It was part of a research project carried out during an internship. The aim of the research
 was to compare the detecting capabilities of a NIDS and a HIDS to advise small and medium-sized enterprises if network detection (NIDS) sufficient is to detect malware infection.

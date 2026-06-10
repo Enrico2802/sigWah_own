@@ -1,0 +1,132 @@
+# Security Configuration Assessment
+# ISO/IEC 27001:2022 baseline for Linux servers.
+# This is a pragmatic governance baseline, not a certification audit.
+
+policy:
+  id: "iso27001_linux_server_baseline"
+  file: "iso27001_linux_server.yml"
+  name: "ISO 27001 Linux Server Baseline"
+  description: "Server-side ISO/IEC 27001:2022 aligned checks for SSH hardening, exposed credentials, logging, firewall posture and agent health."
+  references:
+    - https://documentation.wazuh.com/current/user-manual/capabilities/sec-config-assessment/creating-custom-policies.html
+    - https://documentation.wazuh.com/current/user-manual/capabilities/sec-config-assessment/how-to-configure.html
+  regex_type: "pcre2"
+
+requirements:
+  title: "Linux server requirement"
+  description: "Run this policy on Linux endpoints where passwd or os-release is present."
+  condition: any
+  rules:
+    - 'f:/etc/passwd'
+    - 'f:/etc/os-release'
+
+checks:
+  - id: 321000
+    title: "SSH root login is not explicitly enabled"
+    description: "sshd_config should not contain an active PermitRootLogin yes setting."
+    rationale: "Direct root SSH logon increases the value of one account and weakens individual accountability."
+    remediation: "Set PermitRootLogin no or prohibit-password, then restart or reload sshd."
+    compliance:
+      - iso_27001_2022: ["A.5.15", "A.5.16", "A.5.17", "A.8.2", "A.8.5"]
+    condition: none
+    rules:
+      - 'f:/etc/ssh/sshd_config -> !r:^# && r:^\s*PermitRootLogin\s+yes\b'
+
+  - id: 321001
+    title: "SSH empty passwords are disabled"
+    description: "sshd_config should not allow empty password authentication."
+    rationale: "Empty passwords create a trivial remote access path and usually indicate broken account governance."
+    remediation: "Set PermitEmptyPasswords no, remove empty account passwords and reload sshd."
+    compliance:
+      - iso_27001_2022: ["A.5.15", "A.5.16", "A.5.17", "A.8.5"]
+    condition: none
+    rules:
+      - 'f:/etc/ssh/sshd_config -> !r:^# && r:^\s*PermitEmptyPasswords\s+yes\b'
+
+  - id: 321002
+    title: "SSH password authentication is not explicitly enabled"
+    description: "Servers should prefer key-based SSH access; active PasswordAuthentication yes is flagged for review."
+    rationale: "Password-based remote access is more exposed to phishing, credential reuse and brute-force attacks."
+    remediation: "Use key-based SSH or tune this check for servers where password SSH is formally approved."
+    compliance:
+      - iso_27001_2022: ["A.5.15", "A.5.17", "A.8.5", "A.8.20"]
+    condition: none
+    rules:
+      - 'f:/etc/ssh/sshd_config -> !r:^# && r:^\s*PasswordAuthentication\s+yes\b'
+
+  - id: 321003
+    title: "Only root has UID 0"
+    description: "No non-root account should have UID 0 in /etc/passwd."
+    rationale: "Additional UID 0 accounts have unrestricted system privileges and can hide privilege abuse."
+    remediation: "Investigate the account, remove UID 0 privileges or delete the account if unauthorized."
+    compliance:
+      - iso_27001_2022: ["A.5.15", "A.5.16", "A.8.2", "A.8.3"]
+    condition: none
+    rules:
+      - 'f:/etc/passwd -> !r:^# && !r:^root: && r:^\w+:\w+:0:'
+
+  - id: 321004
+    title: "No obvious password files are stored in home or root folders"
+    description: "Detects files named password.txt, passwort.txt, credentials.txt or secrets.txt under /home or /root."
+    rationale: "Plain-text credential files are high-impact findings because shell users, malware, backups and automation tools can read them."
+    remediation: "Remove the file, rotate exposed credentials and move secrets into an approved password manager or vault."
+    compliance:
+      - iso_27001_2022: ["A.5.10", "A.5.15", "A.5.17", "A.8.3", "A.8.12"]
+    condition: none
+    rules:
+      - 'c:sh -c "find /home /root -maxdepth 4 -type f \( -iname password.txt -o -iname passwort.txt -o -iname credentials.txt -o -iname secrets.txt \) 2>/dev/null" -> r:.+'
+
+  - id: 321005
+    title: "Audit daemon is running"
+    description: "auditd should be active on servers that rely on Linux audit telemetry."
+    rationale: "Without audit telemetry, privileged actions and sensitive access attempts may be missed."
+    remediation: "Install and start auditd, then align audit rules with your monitoring requirements."
+    compliance:
+      - iso_27001_2022: ["A.8.15", "A.8.16"]
+    condition: any
+    rules:
+      - 'p:auditd'
+
+  - id: 321006
+    title: "A host firewall service is active"
+    description: "firewalld, ufw or nftables should be active on Linux servers unless network controls are documented elsewhere."
+    rationale: "A missing host firewall can expose services beyond intended network zones."
+    remediation: "Enable firewalld, ufw or nftables, or tune this check for hosts protected by approved compensating controls."
+    compliance:
+      - iso_27001_2022: ["A.8.20", "A.8.21", "A.8.22"]
+    condition: any
+    rules:
+      - 'c:sh -c "systemctl is-active firewalld ufw nftables 2>/dev/null | grep -E ^active$" -> r:^active$'
+
+  - id: 321007
+    title: "/etc/shadow ownership and permissions are restricted"
+    description: "/etc/shadow should be owned by root and use restrictive permissions."
+    rationale: "Weak shadow file permissions expose password hashes and increase offline cracking risk."
+    remediation: "Set ownership to root and permissions to a restrictive mode such as 400, 440, 600 or 640."
+    compliance:
+      - iso_27001_2022: ["A.5.15", "A.8.3", "A.8.12"]
+    condition: all
+    rules:
+      - 'c:stat -c %a:%U /etc/shadow -> r:^(400|440|600|640):root$'
+
+  - id: 321008
+    title: "Maximum password age is 365 days or less"
+    description: "PASS_MAX_DAYS in /etc/login.defs should be 365 or lower where local passwords are used."
+    rationale: "Unlimited or very long-lived local passwords increase exposure when credentials are reused or leaked."
+    remediation: "Set PASS_MAX_DAYS to 365 or lower, then align account aging with your identity policy."
+    compliance:
+      - iso_27001_2022: ["A.5.16", "A.5.17", "A.8.5"]
+    condition: all
+    rules:
+      - 'f:/etc/login.defs -> n:^\s*PASS_MAX_DAYS\s+(\d+) compare <= 365'
+
+  - id: 321009
+    title: "Wazuh agent daemon is running"
+    description: "The Wazuh agent should be running so server telemetry and SCA results continue to be reported."
+    rationale: "If the monitoring agent is stopped, the server loses central visibility and compliance drift may go unnoticed."
+    remediation: "Start the Wazuh agent service and investigate why it stopped."
+    compliance:
+      - iso_27001_2022: ["A.8.15", "A.8.16"]
+    condition: any
+    rules:
+      - 'p:wazuh-agentd'
