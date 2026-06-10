@@ -62,6 +62,111 @@ The level conversion:
 - medium: 10
 - low: 8
 
+## Regeluebersicht und Wazuh-Integration
+
+Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manuell gepruefte Wazuh/OSSEC-Regeln. Fuer den schnellen Einsatz ist `ossec-rules/local_rules.xml` die wichtigste Datei: Sie buendelt alle aktiven Regeln in einem Wazuh-kompatiblen `<group>`-Block. Die Unterordner enthalten dieselben Regelarten als einzelne Dateien und sind hilfreich, wenn du nur bestimmte Detektionsbereiche uebernehmen oder einzelne Regeln tunen willst.
+
+### Welche Regeln kann ich nutzen?
+
+| Datei / Ordner | Aktive Regeln | Rule-IDs | Datenquelle | Nutzen |
+| --- | ---: | --- | --- | --- |
+| `ossec-rules/local_rules.xml` | 696 | `250000-300970` | Alle enthaltenen Quellen | Empfohlener Startpunkt. Importiert die komplette Regelbasis inklusive Sysmon-, Windows-, PowerShell-, Malware- und Whitelist-Regeln. |
+| `ossec-rules/windows/sysmon/` | 143 | `250000-251011` | Sysmon Eventchannel | Gute Endpoint-Sicht auf Prozessstarts, Netzwerkverbindungen, Image/DLL-Loads, Remote Threads, Registry- und Dateiaktivitaeten. Nuetzlich gegen Credential Dumping, UAC-Bypass, WMI-Persistenz, Webshells und LOLBin-Missbrauch. |
+| `ossec-rules/windows/process_creation/` | 383 | `260000-265983` | Sysmon Event ID 1 / Process Creation | Groesster Block fuer Command-Line-Hunting. Erkennt auffaellige PowerShell/cmd-Aufrufe, Recon, Lateral Movement, verdaechtige LOLBins, Exploit-/CVE-Muster und typische Malware-/Ransomware-Aktivitaeten. |
+| `ossec-rules/windows/powershell/` | 26 | `270000-270220` | PowerShell Operational Log | Erkennt verdraechtige PowerShell-Nutzung wie Download-Cradles, Obfuscation, Encoded Commands, Downgrade-Angriffe, fremde Hosts und bekannte offensive Framework-Artefakte. |
+| `ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
+| `ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
+| `ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
+
+### Empfehlung nach Einsatzszenario
+
+| Szenario | Empfohlene Regeln | Warum |
+| --- | --- | --- |
+| Schnell starten / Lab | `ossec-rules/local_rules.xml` | Eine Datei, alle Regeln, geringster Integrationsaufwand. |
+| Windows-Endpoints mit Sysmon | `local_rules.xml` plus `sysmonconfig.xml` auf den Agents | Die meisten Regeln brauchen Sysmon-Felder wie `win.eventdata.Image`, `CommandLine`, `TargetObject`, `ImageLoaded` oder `DestinationIp`. |
+| Domain Controller / Active Directory | `windows/builtin/` oder komplette `local_rules.xml` | Fokus auf AD-Replikation, DCSync, Delegation, privilegierte Gruppen, RDP und Security-Eventlog-Aktivitaeten. |
+| PowerShell-lastige Umgebung | `windows/powershell/`, `windows/process_creation/`, `windows/sysmon/` | Kombiniert PowerShell Event Logs mit Prozess- und Netzwerk-Kontext. |
+| Malware- und Ransomware-Hunting | `windows/process_creation/`, `windows/sysmon/`, `windows/malware/` | Deckt Verhalten wie LSASS-Dumps, Schattenkopie-Loeschung, verdraechtige Downloader, Named Pipes und bekannte Malware-Muster ab. |
+| Produktiver Betrieb mit wenig False Positives | Erst `local_rules.xml` testen, dann Level-0-Regeln und lokale Ausnahmen pruefen | Die Regeln enthalten Whitelist-Regeln (`level="0"`). Diese sollten zur eigenen Umgebung passen, bevor breit alarmiert wird. |
+
+### In Wazuh einfuegen
+
+1. Auf dem Wazuh Manager ein Backup der lokalen Regeln erstellen:
+
+```bash
+sudo cp /var/ossec/etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml.bak
+```
+
+2. Die gebuendelte Regeldatei aus diesem Repository nach Wazuh kopieren:
+
+```bash
+sudo cp ossec-rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+sudo chown root:wazuh /var/ossec/etc/rules/local_rules.xml
+sudo chmod 640 /var/ossec/etc/rules/local_rules.xml
+```
+
+Wenn du eigene Regeln bereits in `/var/ossec/etc/rules/local_rules.xml` hast, ersetze die Datei nicht blind. Fuege dann den Inhalt aus `ossec-rules/local_rules.xml` in deine bestehende lokale Regeldatei ein oder lege eine neue Datei unter `/var/ossec/etc/rules/` an, zum Beispiel `sigwah_rules.xml`.
+
+3. Syntax und Matching testen:
+
+```bash
+sudo /var/ossec/bin/wazuh-logtest
+```
+
+4. Wazuh Manager neu starten:
+
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+5. Windows-Agenten so konfigurieren, dass die benoetigten Eventchannels geliefert werden. Sysmon ist fuer die meisten Regeln wichtig. Installiere oder aktualisiere Sysmon auf dem Endpoint mit der mitgelieferten Konfiguration:
+
+```powershell
+Sysmon64.exe -accepteula -i sysmonconfig.xml
+```
+
+Bei bereits installiertem Sysmon:
+
+```powershell
+Sysmon64.exe -c sysmonconfig.xml
+```
+
+6. Im Wazuh Agent unter `C:\Program Files (x86)\ossec-agent\ossec.conf` die zusaetzlichen Channels aktivieren:
+
+```xml
+<localfile>
+  <location>Microsoft-Windows-Sysmon/Operational</location>
+  <log_format>eventchannel</log_format>
+</localfile>
+
+<localfile>
+  <location>Microsoft-Windows-PowerShell/Operational</location>
+  <log_format>eventchannel</log_format>
+</localfile>
+```
+
+Danach den Windows-Agent neu starten:
+
+```powershell
+Restart-Service -Name wazuh
+```
+
+Windows `System`, `Application` und `Security` werden von Wazuh-Agenten normalerweise bereits gesammelt. Fuer die `builtin`-Regeln muss aber auch die Windows-Audit-Policy passende Security-Events erzeugen, zum Beispiel fuer Logons, Account Management, Directory Service Changes und Object Access.
+
+### Einzelne Regeln statt Gesamtdatei nutzen
+
+Die XML-Dateien in den Unterordnern sind praktisch zum Selektieren, aber viele davon enthalten nur `<rule>`-Elemente ohne aeusseren `<group>`-Wrapper. Wenn du einzelne Dateien uebernehmen willst, lege sie in einer eigenen Datei unter `/var/ossec/etc/rules/` in einen Gruppenblock, zum Beispiel:
+
+```xml
+<group name="mitre,sigwah,windows,">
+  <!-- ausgewaehlte <rule>...</rule> Bloecke hier einfuegen -->
+</group>
+```
+
+Pruefe danach immer mit `wazuh-logtest` und starte den Manager neu. Bei produktivem Einsatz zuerst auf einer kleinen Agent-Gruppe testen und False Positives anhand der `info`- und `Falsepositives`-Felder der Regeln bewerten.
+
+Weitere offizielle Hinweise stehen in der Wazuh-Dokumentation zu [Custom rules](https://documentation.wazuh.com/current/user-manual/ruleset/rules/custom.html) und zur [Windows event channel collection](https://documentation.wazuh.com/current/user-manual/capabilities/log-data-collection/configuration.html#windows-event-channel).
+
 ## Wazuh improvement
 sigWah is created to improve the detection capabilities of Wazuh. It was part of a research project carried out during an internship. The aim of the research
 was to compare the detecting capabilities of a NIDS and a HIDS to advise small and medium-sized enterprises if network detection (NIDS) sufficient is to detect malware infection.
