@@ -1,0 +1,66 @@
+<group name="ai_tools,portable_ai,process_creation,windows,">
+	<rule id="310300" level="8">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(codex|claude|cursor|windsurf|trae|aider|continue|ollama|lmstudio|lm studio|jan|gpt4all|open-webui|chatgpt|mcp-server-[^\\]+)\.(exe|cmd|bat|ps1)$</field>
+		<description>AI or agent tool process started</description>
+		<info type="text">Detects process creation for common AI tools, agentic coding tools, local LLM applications, and MCP server binaries.</info>
+		<info type="text">Falsepositives: Approved AI tools installed and managed by IT.</info>
+		<group>ai_tools,portable_ai,process_creation,</group>
+	</rule>
+
+	<rule id="310301" level="12">
+		<if_sid>310300</if_sid>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\Users\\[^\\]+\\(Downloads|Desktop|AppData\\Local\\Temp)\\</field>
+		<description>AI or agent tool executed from user Downloads, Desktop, or Temp path</description>
+		<info type="text">Detects portable or unmanaged AI tooling launched from common user-controlled locations.</info>
+		<info type="text">Falsepositives: Approved portable testing by admins or developers.</info>
+		<group>ai_tools,portable_ai,user_path,high_risk_path,</group>
+	</rule>
+
+	<rule id="310302" level="10">
+		<if_sid>310300</if_sid>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\Users\\[^\\]+\\(AppData\\Roaming\\npm|AppData\\Local\\Programs|source|repos|Documents\\GitHub|[^\\]+\\node_modules\\.bin|[^\\]+\\(\.venv|venv)\\Scripts)\\</field>
+		<description>AI or agent tool executed from user developer or package-manager path</description>
+		<info type="text">Detects AI tools launched from npm, Python virtualenv, source, repo, or user-local program paths.</info>
+		<info type="text">Falsepositives: Normal developer activity in approved environments.</info>
+		<group>ai_tools,portable_ai,developer_path,</group>
+	</rule>
+
+	<rule id="310310" level="10">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(node|npx|npm|pnpm|yarn|bun)\.(exe|cmd|bat)$</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(@modelcontextprotocol/server-|mcp-server-|codex|claude-code|cursor|windsurf|aider|continue|open-webui|ollama|lmstudio|gpt4all|anthropic|openai)</field>
+		<description>Node package runner started AI or MCP tooling</description>
+		<info type="text">Detects npm/npx/pnpm/yarn/bun based execution of AI tools, coding agents, SDK clients, or MCP servers.</info>
+		<info type="text">Falsepositives: Approved package installation, build scripts, or AI-enabled development workflows.</info>
+		<group>ai_tools,portable_ai,node_runtime,package_manager,</group>
+	</rule>
+
+	<rule id="310311" level="10">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(python|python3|py|pip|pipx|uv|uvx)\.(exe|cmd|bat)$</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(mcp-server|modelcontextprotocol|aider|open-interpreter|gpt-engineer|openai|anthropic|litellm|llama-index|langchain|crewai|autogen|ollama|open-webui|text-generation-webui)</field>
+		<description>Python package runner started AI or MCP tooling</description>
+		<info type="text">Detects Python and uv based execution of AI agents, AI frameworks, SDK clients, or MCP servers.</info>
+		<info type="text">Falsepositives: Approved development, testing, or data science workflows.</info>
+		<group>ai_tools,portable_ai,python_runtime,package_manager,</group>
+	</rule>
+
+	<rule id="310312" level="12">
+		<if_sid>310310, 310311</if_sid>
+		<field name="win.eventdata.CurrentDirectory" type="pcre2">(?i)\\Users\\[^\\]+\\(Downloads|Desktop|AppData\\Local\\Temp)\\</field>
+		<description>AI or MCP tooling launched by package runner from high-risk user path</description>
+		<info type="text">Detects AI or MCP package-runner activity from Downloads, Desktop, or Temp working directories.</info>
+		<info type="text">Falsepositives: Approved testing or demos from temporary folders.</info>
+		<group>ai_tools,portable_ai,package_manager,high_risk_path,</group>
+	</rule>
+
+	<rule id="310313" level="9">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(Downloads|Desktop|AppData\\Local\\Temp|AppData\\Roaming\\npm|node_modules\\.bin|\\\.venv\\Scripts|\\venv\\Scripts).*(codex|claude|cursor|windsurf|aider|continue|ollama|lmstudio|gpt4all|mcp-server|@modelcontextprotocol)</field>
+		<description>AI or MCP tool referenced from portable user path in command line</description>
+		<info type="text">Detects command lines that reference AI or MCP tooling from portable or user-controlled paths, even when the parent process is a shell or runtime.</info>
+		<info type="text">Falsepositives: Approved scripts in developer workspaces.</info>
+		<group>ai_tools,portable_ai,commandline_path,</group>
+	</rule>
+</group>

@@ -77,7 +77,7 @@ Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manue
 | `ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
 | `ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
 | `ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
-| `ossec-rules/windows/ai_tools/` | 14 | `310000-310140` | Wazuh Syscollector, Sysmon und FIM | Optionale Zusatz-Regelsets, um installierte KI-Tools sowie riskante Agent-Modi wie Full Access, Permission Bypass und MCP-/Tool-Konfigurationsaenderungen auf Clients zu erkennen. |
+| `ossec-rules/windows/ai_tools/` | 36 | `310000-310414` | Wazuh Syscollector, Sysmon und FIM | Optionale Zusatz-Regelsets, um installierte KI-Tools, riskante Agent-Modi, AI-Netzwerkverbindungen, portable AI-Tool-Starts und MCP-Server-Ausfuehrung auf Clients zu erkennen. |
 
 ### Empfehlung nach Einsatzszenario
 
@@ -256,15 +256,57 @@ Wenn Entwickler-Repositories an festen Orten liegen, zum Beispiel `C:\Users\*\so
 
 Hinweis: `report_changes="yes"` kann Inhalte aus Textdateien in Alerts aufnehmen. Fuer Secrets oder Token-Dateien solltest du `nodiff`-Ausnahmen setzen und nur die Datei-Aenderung, nicht den Inhalt, melden.
 
+### AI Network, Portable Tools und MCP-Server erkennen
+
+Die folgenden drei optionalen Regelsets erweitern die KI-Governance von reiner Installationserkennung auf laufendes Verhalten:
+
+| Regelset | Rule-IDs | Datenquelle | Erkennt |
+| --- | --- | --- | --- |
+| `win_ai_network_egress.xml` | `310200-310214` | Sysmon Event ID 3 | Netzwerkverbindungen von AI-/Agent-Prozessen zu AI-APIs, Model-Hosting, externen Zielen oder internen privaten Zielen. |
+| `win_ai_portable_execution.xml` | `310300-310313` | Sysmon Event ID 1 | AI-/Agent-Tools, die aus `Downloads`, `Desktop`, `Temp`, `AppData`, `node_modules`, Python-venvs oder Entwicklerverzeichnissen gestartet werden. |
+| `win_ai_mcp_server_execution.xml` | `310400-310414` | Sysmon Event ID 1 | MCP-Server und Connectoren fuer Filesystem, Browser-Automation, Cloud/Infra, Datenbanken und SaaS-Systeme. |
+
+Installation auf dem Wazuh Manager:
+
+```bash
+sudo cp ossec-rules/windows/ai_tools/win_ai_network_egress.xml /var/ossec/etc/rules/
+sudo cp ossec-rules/windows/ai_tools/win_ai_portable_execution.xml /var/ossec/etc/rules/
+sudo cp ossec-rules/windows/ai_tools/win_ai_mcp_server_execution.xml /var/ossec/etc/rules/
+sudo chown root:wazuh /var/ossec/etc/rules/win_ai_network_egress.xml
+sudo chown root:wazuh /var/ossec/etc/rules/win_ai_portable_execution.xml
+sudo chown root:wazuh /var/ossec/etc/rules/win_ai_mcp_server_execution.xml
+sudo chmod 640 /var/ossec/etc/rules/win_ai_network_egress.xml
+sudo chmod 640 /var/ossec/etc/rules/win_ai_portable_execution.xml
+sudo chmod 640 /var/ossec/etc/rules/win_ai_mcp_server_execution.xml
+sudo /var/ossec/bin/wazuh-logtest
+sudo systemctl restart wazuh-manager
+```
+
+Diese Regeln brauchen Sysmon Process Creation (`sysmon_event1`) und Network Connection (`sysmon_event3`). Im Dashboard kannst du gezielt filtern:
+
+```text
+rule.groups:ai_network
+rule.groups:portable_ai
+rule.groups:mcp_server
+rule.groups:ai_tools
+```
+
+Typische High-Signal-Beispiele:
+
+| Alert-Idee | Warum relevant |
+| --- | --- |
+| `codex`, `claude`, `cursor` oder `windsurf` verbindet extern | Zeigt aktive Agent-/Coding-Tool-Kommunikation, nicht nur Installation. |
+| `ollama`, `lmstudio`, `jan` oder `gpt4all` verbindet extern | Kann Model-Downloads, Telemetrie oder Remote-API-Nutzung anzeigen. |
+| AI-Tool startet aus `Downloads`, `Desktop` oder `Temp` | Hinweis auf unmanaged/portable Nutzung ausserhalb normaler Softwareverteilung. |
+| `npx @modelcontextprotocol/server-filesystem` oder `uvx ... mcp` | Agent bekommt moeglicherweise Zugriff auf lokale Dateien, Repos oder interne Systeme. |
+| MCP fuer Browser, Cloud, Docker, Kubernetes oder Datenbanken | Hohe Aktionsflaeche, weil Agenten damit externe Systeme bedienen koennen. |
+
 Weitere sinnvolle Regelsets fuer KI-Tool-Governance:
 
 | Idee | Nutzen |
 | --- | --- |
 | API-Key-/Token-Datei-Monitoring | Erkennt neue oder geaenderte `.env`, `auth.json`, `credentials.json`, `.npmrc`, `pip.conf` oder Cloud-Credential-Dateien in Entwicklerverzeichnissen. |
-| KI-Tool-Netzwerkziele | Erkennt Verbindungen von Coding-Agents zu nicht freigegebenen AI-APIs oder privaten MCP-/Proxy-Endpunkten. |
 | Sensitive File Access durch KI-Prozesse | Erkennt, wenn `codex`, `claude`, `cursor`, `windsurf`, `ollama` oder aehnliche Prozesse Dateien wie SSH-Keys, Browser-Cookies, Cloud-Credentials oder Passwortspeicher lesen. |
-| MCP-Server-Start per Prozessregel | Erkennt lokale MCP-Server wie Filesystem-, GitHub-, Slack-, Browser- oder Datenbank-Connectoren, die einem Agenten mehr Aktionsflaeche geben. |
-| Portable/Source-basierte KI-Tools | Erkennt Tools, die nicht installiert sind, sondern aus `Downloads`, `AppData`, `Temp`, `source` oder Python/Node-Umgebungen gestartet werden. |
 | Model- und Datenexfiltration | Erkennt grosse Uploads oder auffaellige Verbindungen aus AI-Tool-Prozessen, besonders aus Repositories mit sensiblen Daten. |
 
 ## Wazuh improvement

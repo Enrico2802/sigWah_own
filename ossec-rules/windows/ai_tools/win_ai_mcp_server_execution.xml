@@ -1,0 +1,65 @@
+<group name="ai_tools,mcp_server,process_creation,windows,">
+	<rule id="310400" level="9">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(@modelcontextprotocol/server-|mcp-server-|\bmcp[_-]?server\b|\\mcp[^\\\s]*\.(exe|cmd|bat|ps1))</field>
+		<description>MCP server or MCP-related command executed</description>
+		<info type="text">Detects process creation events that appear to start or invoke Model Context Protocol servers or MCP tooling.</info>
+		<info type="text">Falsepositives: Documentation searches, harmless scripts, or unrelated commands containing the token mcp.</info>
+		<group>ai_tools,mcp_server,process_creation,</group>
+	</rule>
+
+	<rule id="310401" level="10">
+		<if_group>sysmon_event1</if_group>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(node|npx|npm|pnpm|yarn|bun|python|python3|py|uv|uvx)\.(exe|cmd|bat)$</field>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(@modelcontextprotocol/server-|mcp-server-|modelcontextprotocol.*server)</field>
+		<description>Runtime launched an MCP server package</description>
+		<info type="text">Detects Node, Python, or uv runtimes launching MCP server packages.</info>
+		<info type="text">Falsepositives: Approved local MCP services managed by developers or IT.</info>
+		<group>ai_tools,mcp_server,runtime_launcher,</group>
+	</rule>
+
+	<rule id="310410" level="12">
+		<if_sid>310400, 310401</if_sid>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(server-filesystem|mcp-server-filesystem|filesystem|--allow-write|--write|\\Users\\|\\source\\|\\repos\\|\\Documents\\GitHub\\)</field>
+		<description>MCP filesystem server or writable filesystem connector executed</description>
+		<info type="text">Detects MCP servers that expose filesystem access or appear to target user or repository paths.</info>
+		<info type="text">Falsepositives: Approved controlled filesystem MCP usage in isolated workspaces.</info>
+		<group>ai_tools,mcp_server,filesystem_access,</group>
+	</rule>
+
+	<rule id="310411" level="12">
+		<if_sid>310400, 310401</if_sid>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(server-(browser|playwright|puppeteer)|mcp-server-(browser|playwright|puppeteer|chrome)|\b(playwright|puppeteer|chrome|browser)\b)</field>
+		<description>MCP browser automation server executed</description>
+		<info type="text">Detects MCP browser automation connectors, which can interact with authenticated browser sessions, web apps, or internal portals.</info>
+		<info type="text">Falsepositives: Approved browser automation testing.</info>
+		<group>ai_tools,mcp_server,browser_automation,</group>
+	</rule>
+
+	<rule id="310412" level="12">
+		<if_sid>310400, 310401</if_sid>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(server-(aws|azure|gcp|kubernetes|docker)|mcp-server-(aws|azure|gcp|kubernetes|docker)|\b(aws|azure|gcp|gcloud|kubectl|kubernetes|docker)\b)</field>
+		<description>MCP cloud or infrastructure connector executed</description>
+		<info type="text">Detects MCP connectors or commands related to cloud, Kubernetes, or Docker control planes.</info>
+		<info type="text">Falsepositives: Approved platform engineering workflows.</info>
+		<group>ai_tools,mcp_server,cloud_infra,</group>
+	</rule>
+
+	<rule id="310413" level="12">
+		<if_sid>310400, 310401</if_sid>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(server-(postgres|postgresql|mysql|mssql|sqlite|mongodb|mongo|redis|database)|mcp-server-(postgres|postgresql|mysql|mssql|sqlite|mongodb|mongo|redis|database)|\b(postgres|postgresql|mysql|mssql|sqlite|mongodb|mongo|redis)\b)</field>
+		<description>MCP database connector executed</description>
+		<info type="text">Detects MCP connectors that may expose database access to an AI agent.</info>
+		<info type="text">Falsepositives: Approved local database development or read-only analysis workflows.</info>
+		<group>ai_tools,mcp_server,database_access,</group>
+	</rule>
+
+	<rule id="310414" level="11">
+		<if_sid>310400, 310401</if_sid>
+		<field name="win.eventdata.CommandLine" type="pcre2">(?i)(server-(github|gitlab|slack|notion|jira|linear)|mcp-server-(github|gitlab|slack|notion|jira|linear)|\b(github|gitlab|slack|notion|jira|linear)\b)</field>
+		<description>MCP SaaS or collaboration connector executed</description>
+		<info type="text">Detects MCP connectors that may grant AI agents access to repositories, tickets, chat, or documentation systems.</info>
+		<info type="text">Falsepositives: Approved engineering productivity workflows.</info>
+		<group>ai_tools,mcp_server,saas_connector,</group>
+	</rule>
+</group>

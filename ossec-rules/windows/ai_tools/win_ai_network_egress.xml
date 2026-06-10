@@ -1,0 +1,66 @@
+<group name="ai_tools,ai_network,network_connection,windows,">
+	<rule id="310200" level="5">
+		<if_group>sysmon_event3</if_group>
+		<field name="win.eventdata.Initiated">true</field>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(codex|claude|cursor|windsurf|trae|ollama|lmstudio|lm studio|jan|gpt4all|chatgpt|node|python|python3|uv|uvx|npx|npm|pnpm|yarn|bun)\.(exe|cmd|bat|ps1)$</field>
+		<description>AI-capable process initiated a network connection</description>
+		<info type="text">Detects outbound Sysmon network events from common AI tools, coding agents, local LLM tools, and package/runtime launchers often used to start AI tooling.</info>
+		<info type="text">Falsepositives: Developer tools such as node.exe and python.exe are common. Use child rules and environment allowlists to tune severity.</info>
+		<group>ai_tools,ai_network,network_connection,</group>
+	</rule>
+
+	<rule id="310201" level="0">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.DestinationIp" type="pcre2">^(127\.0\.0\.1|::1)$</field>
+		<description>Whitelist Interaction: AI-capable process loopback network connection</description>
+		<group>ai_tools,ai_network,network_connection,</group>
+	</rule>
+
+	<rule id="310210" level="10">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.DestinationHostname" type="pcre2">(?i)(^|\.)((api|chat)\.openai\.com|api\.anthropic\.com|claude\.ai|generativelanguage\.googleapis\.com|aistudio\.google\.com|gemini\.google\.com|api\.perplexity\.ai|api\.mistral\.ai|api\.groq\.com|api\.cohere\.ai|openrouter\.ai|api\.openrouter\.ai|huggingface\.co|cdn-lfs\.huggingface\.co|replicate\.com|api\.replicate\.com)$</field>
+		<description>AI tool connected to public AI or model hosting endpoint</description>
+		<info type="text">Detects AI-capable processes connecting to common public AI APIs, chat endpoints, model providers, or model hosting domains.</info>
+		<info type="text">Falsepositives: Approved AI workflows and model downloads. Validate user, host, repository, and business justification.</info>
+		<group>ai_tools,ai_network,public_ai_endpoint,</group>
+	</rule>
+
+	<rule id="310211" level="9">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(codex|claude|cursor|windsurf|trae)\.(exe|cmd|bat|ps1)$</field>
+		<field name="win.eventdata.DestinationIp" type="pcre2">^(?!(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|::1|fe80:)).+</field>
+		<description>AI coding agent connected to an external network destination</description>
+		<info type="text">Detects coding agents or agentic IDE tools initiating external network connections.</info>
+		<info type="text">Falsepositives: Normal product updates, extension sync, and approved AI service use.</info>
+		<group>ai_tools,ai_network,ai_coding,external_egress,</group>
+	</rule>
+
+	<rule id="310212" level="8">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(ollama|lmstudio|lm studio|jan|gpt4all)\.(exe|cmd|bat|ps1)$</field>
+		<field name="win.eventdata.DestinationIp" type="pcre2">^(?!(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|::1|fe80:)).+</field>
+		<description>Local AI or LLM tool connected to an external network destination</description>
+		<info type="text">Detects local LLM applications initiating external network connections, often for model downloads, telemetry, updates, or remote APIs.</info>
+		<info type="text">Falsepositives: Approved model downloads and update checks.</info>
+		<group>ai_tools,ai_network,local_llm,external_egress,</group>
+	</rule>
+
+	<rule id="310213" level="9">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.Image" type="pcre2">(?i)\\(node|python|python3|uv|uvx|npx|npm|pnpm|yarn|bun)\.(exe|cmd|bat|ps1)$</field>
+		<field name="win.eventdata.DestinationHostname" type="pcre2">(?i)(^|\.)((api|chat)\.openai\.com|api\.anthropic\.com|claude\.ai|api\.perplexity\.ai|api\.mistral\.ai|api\.groq\.com|huggingface\.co|cdn-lfs\.huggingface\.co|openrouter\.ai|api\.openrouter\.ai)$</field>
+		<description>Script runtime connected to AI or model hosting endpoint</description>
+		<info type="text">Detects generic runtimes commonly used by AI tools or MCP servers when they connect to public AI endpoints.</info>
+		<info type="text">Falsepositives: Approved development scripts using AI APIs.</info>
+		<group>ai_tools,ai_network,script_runtime,public_ai_endpoint,</group>
+	</rule>
+
+	<rule id="310214" level="7">
+		<if_sid>310200</if_sid>
+		<field name="win.eventdata.DestinationIp" type="pcre2">^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)</field>
+		<description>AI-capable process connected to private network destination</description>
+		<info type="text">Detects AI tools and agent runtimes connecting to private network destinations, which can indicate local MCP servers, internal proxies, gateways, or internal services.</info>
+		<info type="text">Falsepositives: Approved internal package mirrors, update caches, or local AI gateways.</info>
+		<group>ai_tools,ai_network,private_network,</group>
+	</rule>
+</group>
