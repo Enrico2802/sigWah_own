@@ -77,6 +77,7 @@ Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manue
 | `ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
 | `ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
 | `ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
+| `ossec-rules/windows/ai_tools/` | 6 | `310000-310021` | Wazuh Syscollector Software Inventory | Optionales Zusatz-Regelset, um installierte KI-Tools wie ChatGPT, Claude, Cursor, Windsurf, Ollama, LM Studio, GPT4All, Stable Diffusion und aehnliche Tools auf Clients zu erkennen. |
 
 ### Empfehlung nach Einsatzszenario
 
@@ -166,6 +167,50 @@ Die XML-Dateien in den Unterordnern sind praktisch zum Selektieren, aber viele d
 Pruefe danach immer mit `wazuh-logtest` und starte den Manager neu. Bei produktivem Einsatz zuerst auf einer kleinen Agent-Gruppe testen und False Positives anhand der `info`- und `Falsepositives`-Felder der Regeln bewerten.
 
 Weitere offizielle Hinweise stehen in der Wazuh-Dokumentation zu [Custom rules](https://documentation.wazuh.com/current/user-manual/ruleset/rules/custom.html) und zur [Windows event channel collection](https://documentation.wazuh.com/current/user-manual/capabilities/log-data-collection/configuration.html#windows-event-channel).
+
+### KI-Tools auf Clients erkennen
+
+Das optionale Regelset `ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml` erkennt bekannte KI-Tools ueber Wazuh Syscollector. Es nutzt den eingebauten Syscollector-Parent `221` und matcht auf `program.name` bei Software-Inventory-Events vom Typ `dbsync_packages`.
+
+Erkannte Kategorien:
+
+| Kategorie | Beispiele |
+| --- | --- |
+| AI Chat Assistants | ChatGPT, Claude, Perplexity, Poe, Msty, Microsoft Copilot, Google Gemini |
+| AI Coding Tools | Cursor, Windsurf, Trae, GitHub Copilot, Tabnine, Codeium, Qodo, Amazon Q, JetBrains AI Assistant, Sourcegraph Cody |
+| Lokale LLM-Runtimes | Ollama, LM Studio, GPT4All, Jan, AnythingLLM, Open WebUI, Pinokio, KoboldCPP, llama.cpp |
+| AI Image/Media Tools | Stable Diffusion, Stability Matrix, ComfyUI, AUTOMATIC1111, InvokeAI, Fooocus, Krita AI Diffusion, NVIDIA ChatRTX |
+
+Installation auf dem Wazuh Manager:
+
+```bash
+sudo cp ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml /var/ossec/etc/rules/
+sudo chown root:wazuh /var/ossec/etc/rules/win_ai_tools_inventory.xml
+sudo chmod 640 /var/ossec/etc/rules/win_ai_tools_inventory.xml
+sudo /var/ossec/bin/wazuh-logtest
+sudo systemctl restart wazuh-manager
+```
+
+Syscollector muss auf den Clients aktiv sein und Software-Pakete scannen. Das ist in Wazuh normalerweise standardmaessig aktiv. Falls du es zentral setzen willst, fuege in der Agent-Gruppe zum Beispiel Folgendes ein:
+
+```xml
+<wodle name="syscollector">
+  <disabled>no</disabled>
+  <interval>1h</interval>
+  <scan_on_start>yes</scan_on_start>
+  <packages>yes</packages>
+</wodle>
+```
+
+Wichtig: Der erste Syscollector-Scan erzeugt in Wazuh noch keine Alerts, weil er die Baseline bildet. Die Regeln schlagen an, wenn danach ein KI-Tool installiert, geaendert oder entfernt wird. Fuer bereits vorhandene Installationen kannst du im Dashboard oder per API direkt in der Inventory suchen, zum Beispiel:
+
+```text
+GET /syscollector/<AGENT_ID>/packages?pretty=true&name=ChatGPT
+GET /syscollector/<AGENT_ID>/packages?pretty=true&name=Ollama
+GET /syscollector/<AGENT_ID>/packages?pretty=true&name=Cursor
+```
+
+Im Wazuh Dashboard kannst du die Alerts mit `rule.groups:ai_tools` filtern. Fuer eine reine Inventar-Suche nutze die Software-Inventory-Ansicht oder filtere die Inventory-Indizes nach `data.program.name`.
 
 ## Wazuh improvement
 sigWah is created to improve the detection capabilities of Wazuh. It was part of a research project carried out during an internship. The aim of the research
