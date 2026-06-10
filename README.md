@@ -64,27 +64,38 @@ The level conversion:
 
 ## Regeluebersicht und Wazuh-Integration
 
-Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manuell gepruefte Wazuh/OSSEC-Regeln. Fuer den schnellen Einsatz ist `ossec-rules/local_rules.xml` die wichtigste Datei: Sie buendelt alle aktiven Regeln in einem Wazuh-kompatiblen `<group>`-Block. Die Unterordner enthalten dieselben Regelarten als einzelne Dateien und sind hilfreich, wenn du nur bestimmte Detektionsbereiche uebernehmen oder einzelne Regeln tunen willst.
+Dieses Repository enthaelt neben dem Konverter auch bereits generierte und manuell gepruefte Wazuh/OSSEC-Regeln. Alle einsatzrelevanten Inhalte liegen jetzt unter `ruleset/`:
+
+```text
+ruleset/
+  detection/
+    ossec-rules/       Wazuh/OSSEC XML Detection Rules
+    sysmonconfig.xml   Sysmon-Konfiguration fuer Windows-Endpoints
+  compliance/
+    sca-policies/      Wazuh SCA Compliance Policies
+```
+
+Fuer den schnellen Einsatz ist `ruleset/detection/ossec-rules/local_rules.xml` die wichtigste Datei: Sie buendelt alle aktiven Regeln in einem Wazuh-kompatiblen `<group>`-Block. Die Unterordner enthalten dieselben Regelarten als einzelne Dateien und sind hilfreich, wenn du nur bestimmte Detektionsbereiche uebernehmen oder einzelne Regeln tunen willst.
 
 ### Welche Regeln kann ich nutzen?
 
 | Datei / Ordner | Aktive Regeln | Rule-IDs | Datenquelle | Nutzen |
 | --- | ---: | --- | --- | --- |
-| `ossec-rules/local_rules.xml` | 696 | `250000-300970` | Alle enthaltenen Quellen | Empfohlener Startpunkt. Importiert die komplette Regelbasis inklusive Sysmon-, Windows-, PowerShell-, Malware- und Whitelist-Regeln. |
-| `ossec-rules/windows/sysmon/` | 143 | `250000-251011` | Sysmon Eventchannel | Gute Endpoint-Sicht auf Prozessstarts, Netzwerkverbindungen, Image/DLL-Loads, Remote Threads, Registry- und Dateiaktivitaeten. Nuetzlich gegen Credential Dumping, UAC-Bypass, WMI-Persistenz, Webshells und LOLBin-Missbrauch. |
-| `ossec-rules/windows/process_creation/` | 383 | `260000-265983` | Sysmon Event ID 1 / Process Creation | Groesster Block fuer Command-Line-Hunting. Erkennt auffaellige PowerShell/cmd-Aufrufe, Recon, Lateral Movement, verdaechtige LOLBins, Exploit-/CVE-Muster und typische Malware-/Ransomware-Aktivitaeten. |
-| `ossec-rules/windows/powershell/` | 26 | `270000-270220` | PowerShell Operational Log | Erkennt verdraechtige PowerShell-Nutzung wie Download-Cradles, Obfuscation, Encoded Commands, Downgrade-Angriffe, fremde Hosts und bekannte offensive Framework-Artefakte. |
-| `ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
-| `ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
-| `ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
-| `ossec-rules/windows/ai_tools/` | 36 | `310000-310414` | Wazuh Syscollector, Sysmon und FIM | Optionale Zusatz-Regelsets, um installierte KI-Tools, riskante Agent-Modi, AI-Netzwerkverbindungen, portable AI-Tool-Starts und MCP-Server-Ausfuehrung auf Clients zu erkennen. |
+| `ruleset/detection/ossec-rules/local_rules.xml` | 696 | `250000-300970` | Alle enthaltenen Quellen | Empfohlener Startpunkt. Importiert die komplette Regelbasis inklusive Sysmon-, Windows-, PowerShell-, Malware- und Whitelist-Regeln. |
+| `ruleset/detection/ossec-rules/windows/sysmon/` | 143 | `250000-251011` | Sysmon Eventchannel | Gute Endpoint-Sicht auf Prozessstarts, Netzwerkverbindungen, Image/DLL-Loads, Remote Threads, Registry- und Dateiaktivitaeten. Nuetzlich gegen Credential Dumping, UAC-Bypass, WMI-Persistenz, Webshells und LOLBin-Missbrauch. |
+| `ruleset/detection/ossec-rules/windows/process_creation/` | 383 | `260000-265983` | Sysmon Event ID 1 / Process Creation | Groesster Block fuer Command-Line-Hunting. Erkennt auffaellige PowerShell/cmd-Aufrufe, Recon, Lateral Movement, verdaechtige LOLBins, Exploit-/CVE-Muster und typische Malware-/Ransomware-Aktivitaeten. |
+| `ruleset/detection/ossec-rules/windows/powershell/` | 26 | `270000-270220` | PowerShell Operational Log | Erkennt verdraechtige PowerShell-Nutzung wie Download-Cradles, Obfuscation, Encoded Commands, Downgrade-Angriffe, fremde Hosts und bekannte offensive Framework-Artefakte. |
+| `ruleset/detection/ossec-rules/windows/builtin/` | 133 | `300000-300970` | Windows Security/System/Application und weitere Windows-Kanaele | Besonders wertvoll fuer Domain Controller und Windows-Server. Deckt AD-Aenderungen, DCSync, Pass-the-Hash, RDP, Service-Installationen, Eventlog-Clearing, User-/Group-Aenderungen und Defender-/Security-relevante Events ab. |
+| `ruleset/detection/ossec-rules/windows/malware/` | 6 | `290040-290072` | Windows/Sysmon je nach Regel | Kleine, spezifische IOC-/Verhaltensregeln fuer Malware-Familien wie Ryuk, Ursnif, AZORult und Blue Mockingbird. |
+| `ruleset/detection/ossec-rules/windows/other/` | 5 | `280000-280030` | Windows/Sysmon je nach Regel | Ergaenzende Regeln fuer Defender-Bypass, PsExec und WMI-Persistenz. |
+| `ruleset/detection/ossec-rules/windows/ai_tools/` | 36 | `310000-310414` | Wazuh Syscollector, Sysmon und FIM | Optionale Zusatz-Regelsets, um installierte KI-Tools, riskante Agent-Modi, AI-Netzwerkverbindungen, portable AI-Tool-Starts und MCP-Server-Ausfuehrung auf Clients zu erkennen. |
 
 ### Empfehlung nach Einsatzszenario
 
 | Szenario | Empfohlene Regeln | Warum |
 | --- | --- | --- |
-| Schnell starten / Lab | `ossec-rules/local_rules.xml` | Eine Datei, alle Regeln, geringster Integrationsaufwand. |
-| Windows-Endpoints mit Sysmon | `local_rules.xml` plus `sysmonconfig.xml` auf den Agents | Die meisten Regeln brauchen Sysmon-Felder wie `win.eventdata.Image`, `CommandLine`, `TargetObject`, `ImageLoaded` oder `DestinationIp`. |
+| Schnell starten / Lab | `ruleset/detection/ossec-rules/local_rules.xml` | Eine Datei, alle Regeln, geringster Integrationsaufwand. |
+| Windows-Endpoints mit Sysmon | `local_rules.xml` plus `ruleset/detection/sysmonconfig.xml` auf den Agents | Die meisten Regeln brauchen Sysmon-Felder wie `win.eventdata.Image`, `CommandLine`, `TargetObject`, `ImageLoaded` oder `DestinationIp`. |
 | Domain Controller / Active Directory | `windows/builtin/` oder komplette `local_rules.xml` | Fokus auf AD-Replikation, DCSync, Delegation, privilegierte Gruppen, RDP und Security-Eventlog-Aktivitaeten. |
 | PowerShell-lastige Umgebung | `windows/powershell/`, `windows/process_creation/`, `windows/sysmon/` | Kombiniert PowerShell Event Logs mit Prozess- und Netzwerk-Kontext. |
 | Malware- und Ransomware-Hunting | `windows/process_creation/`, `windows/sysmon/`, `windows/malware/` | Deckt Verhalten wie LSASS-Dumps, Schattenkopie-Loeschung, verdraechtige Downloader, Named Pipes und bekannte Malware-Muster ab. |
@@ -101,12 +112,12 @@ sudo cp /var/ossec/etc/rules/local_rules.xml /var/ossec/etc/rules/local_rules.xm
 2. Die gebuendelte Regeldatei aus diesem Repository nach Wazuh kopieren:
 
 ```bash
-sudo cp ossec-rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+sudo cp ruleset/detection/ossec-rules/local_rules.xml /var/ossec/etc/rules/local_rules.xml
 sudo chown root:wazuh /var/ossec/etc/rules/local_rules.xml
 sudo chmod 640 /var/ossec/etc/rules/local_rules.xml
 ```
 
-Wenn du eigene Regeln bereits in `/var/ossec/etc/rules/local_rules.xml` hast, ersetze die Datei nicht blind. Fuege dann den Inhalt aus `ossec-rules/local_rules.xml` in deine bestehende lokale Regeldatei ein oder lege eine neue Datei unter `/var/ossec/etc/rules/` an, zum Beispiel `sigwah_rules.xml`.
+Wenn du eigene Regeln bereits in `/var/ossec/etc/rules/local_rules.xml` hast, ersetze die Datei nicht blind. Fuege dann den Inhalt aus `ruleset/detection/ossec-rules/local_rules.xml` in deine bestehende lokale Regeldatei ein oder lege eine neue Datei unter `/var/ossec/etc/rules/` an, zum Beispiel `sigwah_rules.xml`.
 
 3. Syntax und Matching testen:
 
@@ -123,13 +134,13 @@ sudo systemctl restart wazuh-manager
 5. Windows-Agenten so konfigurieren, dass die benoetigten Eventchannels geliefert werden. Sysmon ist fuer die meisten Regeln wichtig. Installiere oder aktualisiere Sysmon auf dem Endpoint mit der mitgelieferten Konfiguration:
 
 ```powershell
-Sysmon64.exe -accepteula -i sysmonconfig.xml
+Sysmon64.exe -accepteula -i ruleset\detection\sysmonconfig.xml
 ```
 
 Bei bereits installiertem Sysmon:
 
 ```powershell
-Sysmon64.exe -c sysmonconfig.xml
+Sysmon64.exe -c ruleset\detection\sysmonconfig.xml
 ```
 
 6. Im Wazuh Agent unter `C:\Program Files (x86)\ossec-agent\ossec.conf` die zusaetzlichen Channels aktivieren:
@@ -170,7 +181,7 @@ Weitere offizielle Hinweise stehen in der Wazuh-Dokumentation zu [Custom rules](
 
 ### KI-Tools auf Clients erkennen
 
-Das optionale Regelset `ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml` erkennt bekannte KI-Tools ueber Wazuh Syscollector. Es nutzt den eingebauten Syscollector-Parent `221` und matcht auf `program.name` bei Software-Inventory-Events vom Typ `dbsync_packages`.
+Das optionale Regelset `ruleset/detection/ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml` erkennt bekannte KI-Tools ueber Wazuh Syscollector. Es nutzt den eingebauten Syscollector-Parent `221` und matcht auf `program.name` bei Software-Inventory-Events vom Typ `dbsync_packages`.
 
 Erkannte Kategorien:
 
@@ -184,7 +195,7 @@ Erkannte Kategorien:
 Installation auf dem Wazuh Manager:
 
 ```bash
-sudo cp ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml /var/ossec/etc/rules/
+sudo cp ruleset/detection/ossec-rules/windows/ai_tools/win_ai_tools_inventory.xml /var/ossec/etc/rules/
 sudo chown root:wazuh /var/ossec/etc/rules/win_ai_tools_inventory.xml
 sudo chmod 640 /var/ossec/etc/rules/win_ai_tools_inventory.xml
 sudo /var/ossec/bin/wazuh-logtest
@@ -214,7 +225,7 @@ Im Wazuh Dashboard kannst du die Alerts mit `rule.groups:ai_tools` filtern. Fuer
 
 ### Riskante KI-Agent-Modi erkennen
 
-Das zweite optionale Regelset `ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml` ist fuer die Frage gedacht: "Laesst ein Nutzer einen KI-Agenten mit zu vielen Rechten laufen?"
+Das zweite optionale Regelset `ruleset/detection/ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml` ist fuer die Frage gedacht: "Laesst ein Nutzer einen KI-Agenten mit zu vielen Rechten laufen?"
 
 Es erkennt:
 
@@ -229,7 +240,7 @@ Es erkennt:
 Installation auf dem Wazuh Manager:
 
 ```bash
-sudo cp ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml /var/ossec/etc/rules/
+sudo cp ruleset/detection/ossec-rules/windows/ai_tools/win_ai_agent_risky_modes.xml /var/ossec/etc/rules/
 sudo chown root:wazuh /var/ossec/etc/rules/win_ai_agent_risky_modes.xml
 sudo chmod 640 /var/ossec/etc/rules/win_ai_agent_risky_modes.xml
 sudo /var/ossec/bin/wazuh-logtest
@@ -269,9 +280,9 @@ Die folgenden drei optionalen Regelsets erweitern die KI-Governance von reiner I
 Installation auf dem Wazuh Manager:
 
 ```bash
-sudo cp ossec-rules/windows/ai_tools/win_ai_network_egress.xml /var/ossec/etc/rules/
-sudo cp ossec-rules/windows/ai_tools/win_ai_portable_execution.xml /var/ossec/etc/rules/
-sudo cp ossec-rules/windows/ai_tools/win_ai_mcp_server_execution.xml /var/ossec/etc/rules/
+sudo cp ruleset/detection/ossec-rules/windows/ai_tools/win_ai_network_egress.xml /var/ossec/etc/rules/
+sudo cp ruleset/detection/ossec-rules/windows/ai_tools/win_ai_portable_execution.xml /var/ossec/etc/rules/
+sudo cp ruleset/detection/ossec-rules/windows/ai_tools/win_ai_mcp_server_execution.xml /var/ossec/etc/rules/
 sudo chown root:wazuh /var/ossec/etc/rules/win_ai_network_egress.xml
 sudo chown root:wazuh /var/ossec/etc/rules/win_ai_portable_execution.xml
 sudo chown root:wazuh /var/ossec/etc/rules/win_ai_mcp_server_execution.xml
@@ -311,12 +322,12 @@ Weitere sinnvolle Regelsets fuer KI-Tool-Governance:
 
 ## ISO 27001 Compliance Baseline mit Wazuh SCA
 
-Das Verzeichnis `sca-policies/` enthaelt optionale Wazuh-SCA-Policies fuer einen ersten ISO/IEC-27001:2022-orientierten Compliance-Check:
+Das Verzeichnis `ruleset/compliance/sca-policies/` enthaelt optionale Wazuh-SCA-Policies fuer einen ersten ISO/IEC-27001:2022-orientierten Compliance-Check:
 
 | Datei | Plattform | Checks | SCA-Check-IDs | Zweck |
 | --- | --- | ---: | --- | --- |
-| `sca-policies/windows/iso27001_windows_client.yml` | Windows Clients | 10 | `320000-320009` | Client-Hardening, offensichtliche Passwortdateien, AI-Agent-Full-Access-Konfigurationen, Defender, Firewall, RDP und Wazuh-Agent-Health. |
-| `sca-policies/linux/iso27001_linux_server.yml` | Linux Server | 10 | `321000-321009` | SSH-Hardening, UID-0-Konten, offensichtliche Passwortdateien, auditd, Firewall, `/etc/shadow`, Passwortalter und Wazuh-Agent-Health. |
+| `ruleset/compliance/sca-policies/windows/iso27001_windows_client.yml` | Windows Clients | 10 | `320000-320009` | Client-Hardening, offensichtliche Passwortdateien, AI-Agent-Full-Access-Konfigurationen, Defender, Firewall, RDP und Wazuh-Agent-Health. |
+| `ruleset/compliance/sca-policies/linux/iso27001_linux_server.yml` | Linux Server | 10 | `321000-321009` | SSH-Hardening, UID-0-Konten, offensichtliche Passwortdateien, auditd, Firewall, `/etc/shadow`, Passwortalter und Wazuh-Agent-Health. |
 
 Wazuh SCA bewertet Checks als `Passed`, `Failed` oder `Not applicable`. Der praktische Score ist damit einfach lesbar: Wenn 10 von 10 anwendbaren Checks erfolgreich sind, liegt der Score bei 100 Prozent; wenn 8 von 10 erfolgreich sind, bei 80 Prozent. Jeder Check enthaelt eine `rationale` fuer den Risikoausblick und eine `remediation` mit dem naechsten sinnvollen Fix.
 
@@ -338,7 +349,7 @@ Auf dem Windows-Agent einen lokalen Ordner fuer eigene SCA-Policies anlegen und 
 
 ```powershell
 New-Item -ItemType Directory -Force "C:\Program Files (x86)\ossec-agent\custom-sca-files"
-Copy-Item .\sca-policies\windows\iso27001_windows_client.yml "C:\Program Files (x86)\ossec-agent\custom-sca-files\"
+Copy-Item .\ruleset\compliance\sca-policies\windows\iso27001_windows_client.yml "C:\Program Files (x86)\ossec-agent\custom-sca-files\"
 ```
 
 Danach in `C:\Program Files (x86)\ossec-agent\ossec.conf` die Policy aktivieren:
@@ -366,7 +377,7 @@ Auf dem Linux-Agent:
 
 ```bash
 sudo mkdir -p /var/ossec/etc/custom-sca-files
-sudo cp sca-policies/linux/iso27001_linux_server.yml /var/ossec/etc/custom-sca-files/
+sudo cp ruleset/compliance/sca-policies/linux/iso27001_linux_server.yml /var/ossec/etc/custom-sca-files/
 sudo chown root:wazuh /var/ossec/etc/custom-sca-files/iso27001_linux_server.yml
 sudo chmod 640 /var/ossec/etc/custom-sca-files/iso27001_linux_server.yml
 ```
@@ -456,7 +467,7 @@ optional arguments:
 The conversion of /windows/process_creation rules, with start rule number `260000`:
 
 ```
-python sigWah.py -r 260000 sigma/rules/windows/process_creation ossec-rules/windows/process_creation
+python sigWah.py -r 260000 sigma/rules/windows/process_creation ruleset/detection/ossec-rules/windows/process_creation
 ```
 After the rules have been generated hit CTRL-F and search for `Manual check needed!` note, assess and adjust if necessary.
 
